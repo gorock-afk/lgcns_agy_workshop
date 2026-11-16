@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Claude Opus 5.5 vs Gemini 4 Carbon · Argon · 3.8 Flash — 토큰량 대비 아웃풋 & 3D 비교 아레나</title>
+  <title>Claude Opus 5.5 vs Gemini 4 Carbon · Hydrogen — 토큰량 대비 아웃풋 & 3D 비교 아레나</title>
   <style>
     :root {
       --bg: #ffffff; --panel: #f8fafc; --card: #f3f4f6; --border: #e2e8f0;
@@ -22,12 +22,11 @@
     .agg-box { padding: 10px 12px; background: #fff; border-bottom: 1px solid var(--border); }
     .agg-title { font-size: 11px; font-weight: 800; color: var(--blue-txt); background: var(--blue-bg); padding: 4px 8px; border-radius: 5px; margin-bottom: 6px; display: flex; justify-content: space-between; }
     table.agg-table { width: 100%; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
-    table.agg-table th, table.agg-table td { padding: 4px 4px; border-bottom: 1px solid var(--border); text-align: right; }
+    table.agg-table th, table.agg-table td { padding: 5px 4px; border-bottom: 1px solid var(--border); text-align: right; }
     table.agg-table th:first-child, table.agg-table td:first-child { text-align: left; }
     .pill { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10.5px; font-weight: 800; }
     .pill.carbon { background: var(--blue-bg); color: var(--blue-txt); }
-    .pill.argon { background: var(--green-bg); color: var(--green-txt); }
-    .pill.flash { background: var(--amber-bg); color: var(--amber-txt); }
+    .pill.hydrogen { background: var(--green-bg); color: var(--green-txt); }
     .pill.opus { background: var(--red-bg); color: var(--red-txt); }
     .set-list { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
     .set-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; cursor: pointer; }
@@ -38,7 +37,7 @@
     .main { flex: 1; display: flex; flex-direction: column; height: 100vh; min-width: 0; }
     .topbar { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid var(--border); background: #fff; gap: 8px; flex-wrap: wrap; }
     .controls { display: flex; gap: 6px; flex-wrap: wrap; }
-    .btn { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; color: var(--text); }
+    .btn { padding: 6px 11px; border-radius: 6px; border: 1px solid var(--border); background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; color: var(--text); }
     .btn.active { background: var(--blue-txt); color: #fff; border-color: var(--blue-txt); }
     .summary-strip { border-bottom: 1px solid var(--border); background: #fff; padding: 8px 14px; overflow-x: auto; }
     .summary-strip.hidden { display: none; }
@@ -46,15 +45,12 @@
     table.bench-table th, table.bench-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: right; }
     table.bench-table th:first-child, table.bench-table td:first-child { text-align: left; }
     table.bench-table th { background: var(--panel); color: var(--muted); font-weight: 800; }
-    .stage-grid { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 2px; background: var(--border); min-height: 0; }
-    .stage-grid.split-two { grid-template-columns: repeat(2, 1fr); grid-template-rows: 1fr; }
-    .stage-grid.single-mode { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+    .stage-grid { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; background: var(--border); min-height: 0; }
     .pane { background: #0f172a; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-    .pane.hidden { display: none; }
-    .pane-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; background: #fff; border-bottom: 1px solid var(--border); gap: 6px; flex-wrap: wrap; }
+    .pane-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #fff; border-bottom: 1px solid var(--border); gap: 6px; flex-wrap: wrap; }
     .metric-chip { font-size: 11px; font-weight: 600; color: var(--muted); background: var(--card); border: 1px solid var(--border); padding: 2px 7px; border-radius: 5px; font-variant-numeric: tabular-nums; }
     iframe.model-frame { flex: 1; width: 100%; height: 100%; border: none; display: block; }
-    #longDecodeView { display: none; flex: 1; padding: 20px; background: #f8fafc; overflow-y: auto; }
+    .subview { display: none; flex: 1; padding: 20px; background: #f8fafc; overflow-y: auto; }
     .mod-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
     .mod-cell { padding: 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700; border: 1px solid #cbd5e1; background: #fff; }
     .mod-cell.ok { background: #e6f4ea; border-color: #86efac; color: #0d652d; }
@@ -64,20 +60,21 @@
 <body>
   <aside class="sidebar">
     <div class="sidebar-head">
-      <h1>토큰량 대비 아웃풋 밀도 & 3D 비교 아레나</h1>
-      <p>동일 단일 프롬프트 원샷 생성 실측 — Claude Opus 5.5 vs Gemini 4 Carbon · Argon · 3.8 Flash</p>
+      <h1>Claude vs Gemini 4 Carbon 토큰 밀도 아레나</h1>
+      <p>동일 단일 프롬프트 10세트 원샷 생성 실측 대조 및 Gemini 4 (Carbon · Hydrogen) 아키텍처 가이드</p>
     </div>
     <div class="agg-box">
-      <div class="agg-title"><span>10개 세트 누적 실측 (총 40회)</span><span>10K 토큰당 코드량</span></div>
+      <div class="agg-title"><span>10개 3D 세트 누적 실측 합산</span><span>10K 토큰당 코드량</span></div>
       <table class="agg-table">
         <thead><tr><th>모델</th><th>총 토큰</th><th>완성 코드</th><th>밀도(/10K)</th></tr></thead>
         <tbody>
           <tr><td><span class="pill carbon">4 Carbon</span></td><td>846.5K</td><td><strong>23,111줄</strong></td><td style="color:#174ea6;font-weight:800;">273줄 (3.5x)</td></tr>
-          <tr><td><span class="pill argon">4 Argon</span></td><td>515.7K</td><td><strong>17,357줄</strong></td><td style="color:#0d652d;font-weight:800;">337줄 (4.3x)</td></tr>
-          <tr><td><span class="pill flash">3.8 Flash</span></td><td>550.5K</td><td>9,498줄</td><td>173줄 (2.2x)</td></tr>
           <tr><td><span class="pill opus">Opus 5.5</span></td><td style="color:#a50e0e;">1,092.1K</td><td>8,651줄</td><td style="color:#a50e0e;font-weight:800;">79줄 (1.0x)</td></tr>
         </tbody>
       </table>
+      <div style="margin-top:8px;padding:7px 9px;background:#e6f4ea;border-radius:6px;font-size:11px;color:#0d652d;line-height:1.45;">
+        <strong>Gemini 4 Hydrogen ($1.50/$7.50):</strong> 일상 고속 코딩 & 병렬 워커 주력 (Low · Med · High · XHigh 4단계 추론 깊이 지원)
+      </div>
     </div>
     <div class="set-list" id="setList"></div>
   </aside>
@@ -86,10 +83,9 @@
     <header class="topbar">
       <div><strong id="curSetTitle" style="font-size:14.5px;"></strong> <span id="curSetDesc" style="font-size:12px;color:#64748b;margin-left:6px;"></span></div>
       <div class="controls">
-        <button class="btn active" data-view="carbon_vs_opus">🔥 Carbon vs Claude 1:1 대조</button>
-        <button class="btn" data-view="argon_vs_flash">⚡ Argon vs 3.8 Flash 실습 대조</button>
-        <button class="btn" data-view="all">4모델 동시 보기 (2×2)</button>
+        <button class="btn active" data-view="carbon_vs_opus">🔥 Carbon vs Claude Opus 5.5 실측 1:1</button>
         <button class="btn" data-view="long_decode">🧱 64K 절단 vs 1,000K 연속 출력</button>
+        <button class="btn" data-view="lineup_guide">⚡ Carbon + Hydrogen 4단 추론 가이드</button>
         <button class="btn" id="toggleTableBtn">수치표 접기/펴기</button>
       </div>
     </header>
@@ -98,24 +94,22 @@
       <table class="bench-table">
         <thead>
           <tr>
-            <th>모델</th><th>Input 토큰</th><th>Output+Thinking 토큰</th><th>총 소모 토큰</th><th>완성 코드 줄 수</th><th>10K 토큰당 코드 밀도</th><th>1-Shot 비용</th>
+            <th>모델 (동일 단일 프롬프트)</th><th>Input 토큰</th><th>Output+Thinking 토큰</th><th>총 소모 토큰</th><th>완성 코드 줄 수</th><th>10K 토큰당 코드 밀도</th><th>1-Shot 비용</th>
           </tr>
         </thead>
         <tbody id="benchTbody"></tbody>
       </table>
     </section>
 
-    <main class="stage-grid split-two" id="stageGrid">
-      <div class="pane" data-pane="carbon"><div class="pane-header" id="hdr-carbon"></div><iframe class="model-frame" id="frame-carbon"></iframe></div>
-      <div class="pane" data-pane="opus"><div class="pane-header" id="hdr-opus"></div><iframe class="model-frame" id="frame-opus"></iframe></div>
-      <div class="pane hidden" data-pane="argon"><div class="pane-header" id="hdr-argon"></div><iframe class="model-frame" id="frame-argon"></iframe></div>
-      <div class="pane hidden" data-pane="flash"><div class="pane-header" id="hdr-flash"></div><iframe class="model-frame" id="frame-flash"></iframe></div>
+    <main class="stage-grid" id="stageGrid">
+      <div class="pane"><div class="pane-header" id="hdr-carbon"></div><iframe class="model-frame" id="frame-carbon"></iframe></div>
+      <div class="pane"><div class="pane-header" id="hdr-opus"></div><iframe class="model-frame" id="frame-opus"></iframe></div>
     </main>
 
-    <section id="longDecodeView">
+    <section class="subview" id="longDecodeView">
       <div style="max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:18px;">
         <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:18px 20px;">
-          <h2 style="font-size:19px;margin-bottom:6px;">대규모 SI 풀스택 산출물 원샷 생성: 64K 출력 한계 절단 vs Gemini 4 Carbon/Argon 1,000K 연속 완주</h2>
+          <h2 style="font-size:19px;margin-bottom:6px;">대규모 SI 풀스택 산출물 원샷 생성: 64K 출력 한계 절단 vs Gemini 4 (Carbon · Hydrogen) 1,000K 연속 완주</h2>
           <p style="font-size:13.5px;color:#334155;">엔터프라이즈 주문·정산 마이크로서비스 16개 모듈(DDL, API, 정산 배치, 관리자 웹, E2E 테스트)을 단일 프롬프트로 일괄 구축할 때 출력 토큰 한계 차이를 시뮬레이션합니다.</p>
           <div style="margin-top:12px;display:flex;align-items:center;gap:12px;">
             <strong style="font-size:13px;">출력 진행 스케일 조절:</strong>
@@ -129,16 +123,53 @@
               <strong style="color:#a50e0e;">Claude Opus 5.5 (64K Max Output 상한)</strong>
               <span class="pill opus">64K 도달 시 강제 절단 (TRUNCATED)</span>
             </div>
-            <p style="font-size:12.5px;color:#475569;margin-bottom:8px;">내부 Thinking 토큰 소모 후 모듈 5 부근에서 64K 출력 한계에 도달해 코드가 중간에 끊기며 수동 이어쓰기 프롬프트가 반복 필요합니다.</p>
+            <p style="font-size:12.5px;color:#475569;margin-bottom:8px;">내부 Thinking 토큰 소모 후 모듈 5 부근에서 64K 출력 한계에 도달해 코드가 중간에 끊기며 수동 이어쓰기가 반복 필요합니다.</p>
             <div class="mod-grid" id="claudeMods"></div>
           </div>
           <div style="background:#fff;border:2px solid #93c5fd;border-radius:10px;padding:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <strong style="color:#174ea6;">Gemini 4 Carbon & Argon (1,000K Max Output)</strong>
+              <strong style="color:#174ea6;">Gemini 4 Carbon & Hydrogen (1,000K Max Output)</strong>
               <span class="pill carbon">16개 전 모듈 단일 호흡 완주</span>
             </div>
-            <p style="font-size:12.5px;color:#475569;margin-bottom:8px;">최대 100만 Output 토큰 지원으로 장시간 백그라운드 리팩토링(/goal, /teamwork)에서도 잘림 없이 전체 파일과 테스트 스위트를 완성합니다.</p>
+            <p style="font-size:12.5px;color:#475569;margin-bottom:8px;">최대 100만 Output 토큰 지원으로 장시간 자율 리팩토링(/goal, /teamwork)에서도 잘림 없이 전체 파일과 테스트 스위트를 완성합니다.</p>
             <div class="mod-grid" id="carbonMods"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="subview" id="lineupGuideView">
+      <div style="max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:16px;">
+        <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:18px 20px;">
+          <h2 style="font-size:19px;margin-bottom:6px;">Google Antigravity 내 Gemini 4 Carbon & Hydrogen 실무 역할 분담 가이드</h2>
+          <p style="font-size:13.5px;color:#334155;">일상 고속 개발·병렬 워커는 <strong>Gemini 4 Hydrogen</strong>으로 처리하고, 최상위 아키텍처 설계·공간 추론·사이버보안 감사는 <strong>Gemini 4 Carbon</strong>으로 배치해 속도와 비용을 동시에 최적화합니다.</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="background:#fff;border:1px solid #86efac;border-radius:10px;padding:18px;">
+            <span class="pill hydrogen" style="font-size:12px;">Gemini 4 Hydrogen ($1.50 / $7.50 per 1M)</span>
+            <h3 style="font-size:17px;margin:8px 0;">4단계 추론 깊이(Thinking Level) 선택 기준</h3>
+            <table class="bench-table" style="margin-top:8px;">
+              <thead><tr><th>레벨</th><th>AA 지수 · 평균 시간</th><th>권장 엔지니어링 작업</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Low</strong></td><td>26.9 · 1.3분</td><td>단순 분류, 라우팅, 정형 로그 추출</td></tr>
+                <tr><td><strong>Medium</strong></td><td>41.2 · 3.7분</td><td>실시간 UI 반복 수정, 빠른 서브태스크</td></tr>
+                <tr><td><strong>High (기본)</strong></td><td><strong>50.8 · 6.0분</strong></td><td>일상 코딩, 도구 호출, Terminal-Bench 57.0%</td></tr>
+                <tr><td><strong>XHigh (신규)</strong></td><td><strong>53.9 · 13.0분</strong></td><td>다단계 디버깅, AutomationBench 76.1%, 심층 분석</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="background:#fff;border:1px solid #93c5fd;border-radius:10px;padding:18px;">
+            <span class="pill carbon" style="font-size:12px;">Gemini 4 Carbon (Low · Medium · High)</span>
+            <h3 style="font-size:17px;margin:8px 0;">최상위 플래그십 추론 & 보안 투입 시점</h3>
+            <table class="bench-table" style="margin-top:8px;">
+              <thead><tr><th>핵심 영역</th><th>공식 벤치마크</th><th>실무 투입 시나리오</th></tr></thead>
+              <tbody>
+                <tr><td><strong>종합 추론</strong></td><td><strong>AA Index 59</strong></td><td>대규모 MSA 아키텍처 설계, /teamwork 상위 플래너</td></tr>
+                <tr><td><strong>재무·법무·코딩</strong></td><td><strong>Vals v2.2 70.4%</strong></td><td>다문서 계약·원장 정밀 대사 및 복합 정합성 검증</td></tr>
+                <tr><td><strong>공간·3D 기하</strong></td><td><strong>Blueprint-2 58.6%</strong></td><td>2D 도면 ➔ 3D 디지털 트윈·물리 충돌 원샷 구현</td></tr>
+                <tr><td><strong>사이버보안</strong></td><td><strong>ExploitGym 54.8%</strong></td><td>취약점 오염 경로(Taint) 추적 및 무회귀 보안 패치</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -151,8 +182,6 @@
         id: "set01", title: "비교 01 · 복슬복슬 포메라니안 & 반투명 젤리 쿠션", desc: "수만 가닥 털(Fur) 셰이더 + 탄성 젤리 소프트바디 물리",
         models: {
           carbon: { file: "furry_jelly_puppy_gemini4_carbon.html", in_t: 19159, out_t: 66826, tot: 85985, lines: 2055, kb: 76.1, cost: "$0.71" },
-          argon:  { file: "furry_jelly_puppy_gemini4_argon.html",  in_t: 24396, out_t: 27895, tot: 52291, lines: 1521, kb: 50.6, cost: "$0.33" },
-          flash:  { file: "furry_jelly_puppy_gemini38_flash.html", in_t: 21000, out_t: 32319, tot: 53319, lines: 1028, kb: 35.4, cost: "$0.14" },
           opus:   { file: "furry_jelly_puppy_claude_opus55.html",  in_t: 27850, out_t: 90144, tot: 117994, lines: 807, kb: 35.6, cost: "$2.39 (표준 $7.18)" }
         }
       },
@@ -160,8 +189,6 @@
         id: "set04", title: "비교 02 · 가시·배털 아기 고슴도치 3D", desc: "수만 가시 인스턴싱 지오메트리 & 관절 애니메이션",
         models: {
           carbon: { file: "set04_spiky_hedgehog_gemini4_carbon.html", in_t: 17902, out_t: 68122, tot: 86024, lines: 2505, kb: 83.0, cost: "$0.72" },
-          argon:  { file: "set04_spiky_hedgehog_gemini4_argon.html",  in_t: 17895, out_t: 34917, tot: 52812, lines: 1931, kb: 64.3, cost: "$0.39" },
-          flash:  { file: "set04_spiky_hedgehog_gemini38_flash.html", in_t: 24754, out_t: 28767, tot: 53521, lines: 762,  kb: 26.3, cost: "$0.13" },
           opus:   { file: "set04_spiky_hedgehog_claude_opus55.html",  in_t: 27262, out_t: 83448, tot: 110710, lines: 899, kb: 34.6, cost: "$2.22 (표준 $6.67)" }
         }
       },
@@ -169,8 +196,6 @@
         id: "set05", title: "비교 03 · 심해 반투명 발광 해파리 3D", desc: "프레넬 굴절 셰이더 + 다관절 촉수 유체 파동 수식",
         models: {
           carbon: { file: "set05_biolum_jellyfish_gemini4_carbon.html", in_t: 18386, out_t: 45783, tot: 64169, lines: 2054, kb: 79.6, cost: "$0.50" },
-          argon:  { file: "set05_biolum_jellyfish_gemini4_argon.html",  in_t: 24051, out_t: 23232, tot: 47283, lines: 1440, kb: 50.6, cost: "$0.28" },
-          flash:  { file: "set05_biolum_jellyfish_gemini38_flash.html", in_t: 24722, out_t: 27270, tot: 51992, lines: 866,  kb: 30.9, cost: "$0.12" },
           opus:   { file: "set05_biolum_jellyfish_claude_opus55.html",  in_t: 27275, out_t: 81340, tot: 108615, lines: 967, kb: 43.8, cost: "$2.17 (표준 $6.51)" }
         }
       },
@@ -178,8 +203,6 @@
         id: "set09", title: "비교 04 · 8촉수 반투명 유리문어 3D", desc: "유리 굴절 PBR 재질 & 8촉수 빨판 역기구학 움직임",
         models: {
           carbon: { file: "set09_glass_octopus_gemini4_carbon.html", in_t: 17868, out_t: 50651, tot: 68519, lines: 2011, kb: 73.9, cost: "$0.54" },
-          argon:  { file: "set09_glass_octopus_gemini4_argon.html",  in_t: 13972, out_t: 27399, tot: 41371, lines: 1791, kb: 68.8, cost: "$0.30" },
-          flash:  { file: "set09_glass_octopus_gemini38_flash.html", in_t: 24724, out_t: 33718, tot: 58442, lines: 943,  kb: 33.8, cost: "$0.15" },
           opus:   { file: "set09_glass_octopus_claude_opus55.html",  in_t: 27254, out_t: 59389, tot: 86643, lines: 848,  kb: 32.3, cost: "$1.62 (표준 $4.86)" }
         }
       }
@@ -193,11 +216,9 @@
     ];
 
     let curIdx = 0;
-    let curView = "carbon_vs_opus";
 
     function renderSidebar() {
-      const el = document.getElementById("setList");
-      el.innerHTML = SETS.map((s, i) => `
+      document.getElementById("setList").innerHTML = SETS.map((s, i) => `
         <div class="set-card ${i === curIdx ? 'active' : ''}" onclick="selectSet(${i})">
           <div class="set-name">${s.title}</div>
           <div class="set-sub">${s.desc}</div>
@@ -217,10 +238,8 @@
       document.getElementById("curSetDesc").textContent = s.desc;
 
       const rows = [
-        { k: "carbon", label: "Gemini 4 Carbon", pill: "carbon" },
-        { k: "argon",  label: "Gemini 4 Argon",  pill: "argon" },
-        { k: "flash",  label: "Gemini 3.8 Flash", pill: "flash" },
-        { k: "opus",   label: "Claude Opus 5.5", pill: "opus" }
+        { k: "carbon", label: "Gemini 4 Carbon (High)", pill: "carbon" },
+        { k: "opus",   label: "Claude Opus 5.5 (High)", pill: "opus" }
       ];
       const opusDensity = (s.models.opus.lines / (s.models.opus.tot / 10000));
       document.getElementById("benchTbody").innerHTML = rows.map(r => {
@@ -259,29 +278,11 @@
     }
 
     function applyView(v) {
-      curView = v;
-      const grid = document.getElementById("stageGrid");
-      const ld = document.getElementById("longDecodeView");
-      const strip = document.getElementById("summaryStrip");
-      if (v === "long_decode") {
-        grid.style.display = "none";
-        strip.style.display = "none";
-        ld.style.display = "block";
-        updateLongDecode(document.getElementById("tokScrubber").value);
-        return;
-      }
-      ld.style.display = "none";
-      strip.style.display = "";
-      grid.style.display = "grid";
-      grid.className = "stage-grid " + (v === "all" ? "" : "split-two");
-      const showMap = {
-        carbon_vs_opus: ["carbon", "opus"],
-        argon_vs_flash: ["argon", "flash"],
-        all: ["carbon", "opus", "argon", "flash"]
-      }[v] || ["carbon", "opus"];
-      document.querySelectorAll("[data-pane]").forEach(p => {
-        p.classList.toggle("hidden", !showMap.includes(p.getAttribute("data-pane")));
-      });
+      document.getElementById("stageGrid").style.display = v === "carbon_vs_opus" ? "grid" : "none";
+      document.getElementById("summaryStrip").style.display = v === "carbon_vs_opus" ? "" : "none";
+      document.getElementById("longDecodeView").style.display = v === "long_decode" ? "block" : "none";
+      document.getElementById("lineupGuideView").style.display = v === "lineup_guide" ? "block" : "none";
+      if (v === "long_decode") updateLongDecode(document.getElementById("tokScrubber").value);
     }
 
     function updateLongDecode(val) {
