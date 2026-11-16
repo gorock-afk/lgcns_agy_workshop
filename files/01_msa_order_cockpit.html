@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudOrder MSA Settlement Cockpit (Hands-On Debugging Lab)</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+    body { margin: 0; padding: 24px 28px; background: #F8FAFC; color: #0F172A; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    .badge-top { display: inline-block; background: #E8F0FE; color: #174EA6; font-size: 11.5px; font-weight: 800; padding: 3px 9px; border-radius: 6px; margin-bottom: 6px; }
+    h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+    .sub { margin: 4px 0 0; font-size: 13px; color: #475569; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    button, select, input { padding: 8px 13px; border-radius: 6px; border: 1px solid #CBD5E1; font-size: 13px; background: #FFF; color: #0F172A; font-weight: 600; cursor: pointer; }
+    button.primary { background: #174EA6; color: #FFF; border-color: #174EA6; font-weight: 700; }
+    button.region-tab.active { background: #0F172A; color: #FFF; border-color: #0F172A; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+    .kpi { background: #FFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px; }
+    .kpi span { font-size: 12px; color: #64748B; font-weight: 700; display: block; }
+    .kpi strong { font-size: 20px; margin-top: 4px; display: block; font-variant-numeric: tabular-nums; }
+    #diagBanner { display: none; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; border: 1px solid transparent; }
+    .main-grid { display: grid; grid-template-columns: 2.2fr 1fr; gap: 16px; }
+    .panel { background: #FFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid #E2E8F0; text-align: left; }
+    th { background: #F1F5F9; color: #334155; font-weight: 800; font-size: 12px; }
+    .pill { padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 800; }
+    .pill.SETTLED { background: #E6F4EA; color: #0D652D; }
+    .pill.TIMEOUT { background: #FCE8E6; color: #A50E0E; }
+    .log-list { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #0F172A; color: #E2E8F0; border-radius: 6px; padding: 12px; height: 220px; overflow-y: auto; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <span class="badge-top">PART 1 HANDS-ON · /grill-me ➔ /plan ➔ /browser ➔ /goal</span>
+      <h1>MSA 글로벌 주문·정산 관제 콕핏 (복합 버그 4종 디버깅 과제)</h1>
+      <p class="sub">비동기 응답 역전(Race Condition), 정산 부동소수점 반올림 오차, 재시도 중복 차감(Idempotency), 빈 필터 렌더링 크래시를 모두 해결하세요.</p>
+    </div>
+    <div class="toolbar">
+      <button class="region-tab active" data-region="ALL" onclick="switchRegion('ALL', this)">전체 리전</button>
+      <button class="region-tab" data-region="KR" onclick="switchRegion('KR', this)">KR-Seoul</button>
+      <button class="region-tab" data-region="US" onclick="switchRegion('US', this)">US-East</button>
+      <button class="region-tab" data-region="EU" onclick="switchRegion('EU', this)">EU-West</button>
+      <button class="region-tab" data-region="APAC_DR" onclick="switchRegion('APAC_DR', this)">APAC-DR (0건)</button>
+      <button class="primary" id="runDiagBtn" onclick="runDiagnostics()">자가 E2E 진단 (6개 케이스 실행)</button>
+    </div>
+  </header>
+
+  <div id="diagBanner"></div>
+
+  <div class="kpi-grid">
+    <div class="kpi"><span>선택 리전 / 표시 주문 수</span><strong id="kpiRegionCount">ALL · 0건</strong></div>
+    <div class="kpi"><span>정산 지급 합계 (수수료 3.3% + VAT 10% 차감)</span><strong id="kpiNetTotal">0 KRW</strong></div>
+    <div class="kpi"><span>원장 출금 누적 건수 (중복 차감 감시)</span><strong id="kpiLedgerCount">0건</strong></div>
+    <div class="kpi"><span>SLA 정상 처리율 게이지</span><strong id="kpiSlaText">0%</strong></div>
+  </div>
+
+  <div class="main-grid">
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <strong>실시간 주문 정산 스트림</strong>
+        <span style="font-size:12px;color:#64748B;">기준 정책: 건별 수수료(3.3%) 및 수수료 VAT(10%) 각각 원 단위 반올림(HALF_UP) 후 합산 차감</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>주문 ID</th><th>리전</th><th>결제 원금(KRW)</th><th>순정산액(KRW)</th><th>상태</th><th>액션</th>
+          </tr>
+        </thead>
+        <tbody id="orderTbody"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <strong>SLA 링 게이지 & 출금 원장 로그</strong>
+        <svg width="44" height="44" viewBox="0 0 44 44">
+          <circle cx="22" cy="22" r="18" stroke="#E2E8F0" stroke-width="5" fill="none"/>
+          <circle id="slaArc" cx="22" cy="22" r="18" stroke="#174EA6" stroke-width="5" fill="none" stroke-dasharray="113.1" stroke-dashoffset="113.1"/>
+        </svg>
+      </div>
+      <div class="log-list" id="ledgerLog"></div>
+    </div>
+  </div>
+
+  <script>
+    const MASTER_ORDERS = [
+      { id: "ORD-9001", region: "KR", gross: 100015, status: "SETTLED", idemKey: "idem-9001" },
+      { id: "ORD-9002", region: "KR", gross: 250030, status: "TIMEOUT", idemKey: "idem-9002" },
+      { id: "ORD-9003", region: "US", gross: 180045, status: "SETTLED", idemKey: "idem-9003" },
+      { id: "ORD-9004", region: "EU", gross: 310075, status: "TIMEOUT", idemKey: "idem-9004" },
+      { id: "ORD-9005", region: "EU", gross: 95010,  status: "SETTLED", idemKey: "idem-9005" }
+    ];
+
+    let activeRegion = "ALL";
+    let visibleOrders = [];
+    let ledgerEntries = [
+      { tx: "LED-1", orderId: "ORD-9001", idemKey: "idem-9001", net: 96384 },
+      { tx: "LED-2", orderId: "ORD-9003", idemKey: "idem-9003", net: 173509 },
+      { tx: "LED-3", orderId: "ORD-9005", idemKey: "idem-9005", net: 91561 }
+    ];
+
+    // Mock API latency: ALL takes 180ms, specific regions take 35ms -> rapid ALL -> EU click triggers stale overwrite!
+    function mockFetchOrders(region) {
+      const delay = region === "ALL" ? 180 : 35;
+      return new Promise(resolve => {
+        setTimeout(() => {
+          const rows = region === "ALL"
+            ? MASTER_ORDERS.map(o => ({ ...o }))
+            : MASTER_ORDERS.filter(o => o.region === region).map(o => ({ ...o }));
+          resolve(rows);
+        }, delay);
+      });
+    }
+
+    // BUG 2: Float arithmetic without per-item HALF_UP integer rounding causes KRW drift!
+    function calcNetSettlement(gross) {
+      const fee = gross * 0.033;
+      const vat = fee * 0.1;
+      return gross - fee - vat;
+    }
+
+    // Exact reference calculation used by QA gate:
+    function expectedExactNet(gross) {
+      const fee = Math.floor(gross * 0.033 + 0.5);
+      const vat = Math.floor(fee * 0.1 + 0.5);
+      return gross - fee - vat;
+    }
+
+    // BUG 1: No request sequence / AbortController -> out-of-order response overwrites newer filter!
+    async function switchRegion(region, btnEl) {
+      activeRegion = region;
+      if (btnEl) {
+        document.querySelectorAll(".region-tab").forEach(b => b.classList.remove("active"));
+        btnEl.classList.add("active");
+      }
+      const rows = await mockFetchOrders(region);
+      visibleOrders = rows;
+      renderCockpit();
+    }
+
+    // BUG 3: Missing idempotency check -> clicking retry twice debits ledger twice!
+    function retrySettlement(orderId) {
+      const target = MASTER_ORDERS.find(o => o.id === orderId);
+      if (!target) return;
+      target.status = "SETTLED";
+      const net = calcNetSettlement(target.gross);
+      ledgerEntries.push({
+        tx: "LED-" + (ledgerEntries.length + 1),
+        orderId: target.id,
+        idemKey: target.idemKey,
+        net
+      });
+      const v = visibleOrders.find(o => o.id === orderId);
+      if (v) v.status = "SETTLED";
+      renderCockpit();
+    }
+
+    function renderCockpit() {
+      document.getElementById("kpiRegionCount").textContent = `${activeRegion} · ${visibleOrders.length}건`;
+
+      const netSum = visibleOrders.reduce((acc, o) => acc + calcNetSettlement(o.gross), 0);
+      document.getElementById("kpiNetTotal").textContent = `${netSum.toLocaleString("ko-KR")} KRW`;
+      document.getElementById("kpiLedgerCount").textContent = `${ledgerEntries.length}건`;
+
+      // BUG 4: Zero-length array causes NaN ratio and throws explicit RangeError on SVG strokeDashoffset validation!
+      const settledCnt = visibleOrders.filter(o => o.status === "SETTLED").length;
+      const ratio = settledCnt / visibleOrders.length;
+      if (Number.isNaN(ratio)) {
+        throw new TypeError("SLA Gauge Error: Cannot compute SLA ratio of empty order set (NaN)");
+      }
+      const pct = Math.round(ratio * 100);
+      document.getElementById("kpiSlaText").textContent = pct + "%";
+      const circ = 113.1;
+      document.getElementById("slaArc").setAttribute("stroke-dashoffset", String(circ * (1 - ratio)));
+
+      const tbody = document.getElementById("orderTbody");
+      tbody.innerHTML = visibleOrders.map(o => `
+        <tr>
+          <td><strong>${o.id}</strong></td>
+          <td>${o.region}</td>
+          <td>${o.gross.toLocaleString("ko-KR")}</td>
+          <td>${calcNetSettlement(o.gross).toLocaleString("ko-KR")}</td>
+          <td><span class="pill ${o.status}">${o.status}</span></td>
+          <td><button onclick="retrySettlement('${o.id}')">정산 재시도</button></td>
+        </tr>
+      `).join("");
+
+      const logEl = document.getElementById("ledgerLog");
+      logEl.innerHTML = ledgerEntries.map(l => `[${l.tx}] ${l.orderId} (idem=${l.idemKey}) -> ${l.net} KRW`).join("<br>");
+    }
+
+    async function runDiagnostics() {
+      const banner = document.getElementById("diagBanner");
+      banner.style.display = "block";
+      const results = [];
+
+      // Reset baseline
+      MASTER_ORDERS[1].status = "TIMEOUT";
+      MASTER_ORDERS[3].status = "TIMEOUT";
+      ledgerEntries = [
+        { tx: "LED-1", orderId: "ORD-9001", idemKey: "idem-9001", net: 96384 },
+        { tx: "LED-2", orderId: "ORD-9003", idemKey: "idem-9003", net: 173509 },
+        { tx: "LED-3", orderId: "ORD-9005", idemKey: "idem-9005", net: 91561 }
+      ];
+
+      // Check 1 & 2: Rapid async filter switch ALL (slow 180ms) -> EU (fast 35ms)
+      try {
+        const pSlow = switchRegion("ALL", document.querySelector('[data-region="ALL"]'));
+        const pFast = switchRegion("EU", document.querySelector('[data-region="EU"]'));
+        await Promise.all([pSlow, pFast]);
+        const onlyEu = activeRegion === "EU" && visibleOrders.length === 2 && visibleOrders.every(o => o.region === "EU");
+        results.push({ name: "1. 비동기 레이스 컨디션 방어 (ALL➔EU 연타)", pass: onlyEu, detail: `표시 건수=${visibleOrders.length}건 (기대=EU 2건)` });
+      } catch (e) {
+        results.push({ name: "1. 비동기 레이스 컨디션 방어", pass: false, detail: e.message });
+      }
+
+      // Check 3: Integer HALF_UP fee & VAT settlement precision across all 5 orders
+      try {
+        const diffs = MASTER_ORDERS.filter(o => calcNetSettlement(o.gross) !== expectedExactNet(o.gross));
+        results.push({ name: "2. 원화 수수료·VAT 정수 반올림 정밀도", pass: diffs.length === 0, detail: diffs.length === 0 ? "5건 전수 0원 오차 일치" : `${diffs.length}건 소수점/반올림 오차 발생` });
+      } catch (e) {
+        results.push({ name: "2. 원화 수수료·VAT 정수 반올림 정밀도", pass: false, detail: e.message });
+      }
+
+      // Check 4: Idempotent retry (calling retrySettlement twice on ORD-9002 must only add 1 ledger entry)
+      try {
+        const beforeLen = ledgerEntries.length;
+        retrySettlement("ORD-9002");
+        retrySettlement("ORD-9002");
+        const added = ledgerEntries.length - beforeLen;
+        results.push({ name: "3. 정산 재시도 멱등성(Idempotency) 보장", pass: added === 1, detail: `2회 호출 시 원장 증가=${added}건 (기대=1건)` });
+      } catch (e) {
+        results.push({ name: "3. 정산 재시도 멱등성(Idempotency) 보장", pass: false, detail: e.message });
+      }
+
+      // Check 5 & 6: Empty region filter (APAC_DR = 0 rows) without throwing NaN/TypeError + clean recovery back to ALL
+      try {
+        await switchRegion("APAC_DR", document.querySelector('[data-region="APAC_DR"]'));
+        const slaTxt = document.getElementById("kpiSlaText").textContent;
+        const okZero = visibleOrders.length === 0 && slaTxt === "0%";
+        results.push({ name: "4. 0건 빈 리전(APAC-DR) 게이지 안전 렌더링", pass: okZero, detail: `SLA 표시=${slaTxt} (기대=0%)` });
+      } catch (e) {
+        results.push({ name: "4. 0건 빈 리전(APAC-DR) 게이지 안전 렌더링", pass: false, detail: e.message });
+      }
+
+      try {
+        await switchRegion("ALL", document.querySelector('[data-region="ALL"]'));
+        const netText = document.getElementById("kpiNetTotal").textContent;
+        const exactAllSum = MASTER_ORDERS.reduce((a, o) => a + expectedExactNet(o.gross), 0);
+        const okAll = visibleOrders.length === 5 && netText === `${exactAllSum.toLocaleString("ko-KR")} KRW`;
+        results.push({ name: "5. 전체 리전 복귀 및 총 정산 합계 일치", pass: okAll, detail: `표시=${netText} (기대=${exactAllSum.toLocaleString("ko-KR")} KRW)` });
+        const uniqueIdem = new Set(ledgerEntries.map(x => x.idemKey)).size === ledgerEntries.length;
+        results.push({ name: "6. 원장 전체 멱등성 키 무결성 검증", pass: uniqueIdem, detail: `총 원장 ${ledgerEntries.length}건 중복 없음=${uniqueIdem}` });
+      } catch (e) {
+        results.push({ name: "5~6. 복귀 및 무결성 검증", pass: false, detail: e.message });
+      }
+
+      const passCnt = results.filter(r => r.pass).length;
+      const allPass = passCnt === results.length;
+      banner.style.background = allPass ? "#E6F4EA" : "#FCE8E6";
+      banner.style.borderColor = allPass ? "#86EFAC" : "#FCA5A5";
+      banner.style.color = allPass ? "#0D652D" : "#A50E0E";
+      banner.innerHTML = `<strong>[${allPass ? "ALL 6/6 DIAGNOSTICS PASSED" : `DIAGNOSTICS FAILED: ${passCnt}/${results.length} PASSED`}]</strong><br>` +
+        results.map(r => `${r.pass ? "✅" : "❌"} <strong>${r.name}</strong> — ${r.detail}`).join("<br>");
+    }
+
+    switchRegion("ALL", document.querySelector('[data-region="ALL"]'));
+  </script>
+</body>
+</html>

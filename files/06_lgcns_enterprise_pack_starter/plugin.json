@@ -1,0 +1,14 @@
+{
+  "name": "lgcns-enterprise-pack",
+  "version": "1.0.0",
+  "description": "엔터프라이즈 SI 프로젝트 표준 정산·보안 코딩 규칙, 토큰 밀도 측정 스킬, 보안 감사 서브에이전트 번들",
+  "rules": [
+    "rules/financial-and-sql-safety.md"
+  ],
+  "skills": [
+    "skills/token-stats"
+  ],
+  "agents": [
+    "agents/security-auditor.md"
+  ]
+}

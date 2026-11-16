@@ -1,0 +1,10 @@
+{
+  "block-dangerous-shell-and-env": {
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "command": "python3 -c \"import sys,json; d=json.load(sys.stdin); cmd=d.get('tool_input',{}).get('CommandLine',''); sys.exit(2 if ('rm -rf /' in cmd or '.env.production' in cmd) else 0)\""
+      }
+    ]
+  }
+}

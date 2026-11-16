@@ -1,0 +1,5 @@
+invoice_line_id,workload_id,currency,base_fee_orig,ri_3y_discount_rate,promo_coupon_rate,fx_rate_applied,unplanned_downtime_min,scheduled_maint_duration_min,outage_window_kst,reported_uptime_pct,sla_credit_rate_applied,billed_final_krw,memo
+INV-202610-01,KR-Prod-Pay,KRW,80000000,0.30,0.00,1,65,0,2026-10-14 11:10~12:15 (평일 주간),99.8495,0.25,42000000,"결제 코어 주간 장애 65분 발생, 기본 25% 크레딧만 차감"
+INV-202610-02,KR-Prod-ERP,KRW,50000000,0.00,0.10,1,10,155,2026-10-11 02:00~04:35 (일요일 정기점검 지연),99.9769,0.00,45000000,"정기점검 155분 전량 면책 처리하여 가동률 99.98% 정상 판정"
+INV-202610-03,US-DR-Core,USD,40000,0.30,0.00,1410,0,60,2026-10-11 02:00~03:00 (정상 점검 내),100.0000,0.00,39480000,"당월 일반 매매기준율 1,410원 일괄 적용 청구"
+INV-202610-04,EU-Edge-API,KRW,30000000,0.30,0.10,1,15,0,2026-10-22 23:10~23:25 (야간),99.9653,0.00,18900000,"3Y-RI 30% 할인 후 PROMO-10 10% 추가 복리 차감 적용"
